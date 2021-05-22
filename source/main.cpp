@@ -9,66 +9,94 @@ GLMatrices Matrices;
 GLuint programID;
 GLFWwindow *window;
 
-/**************************
- * Customizable functions *
- **************************/
-
 Ball ball1;
 
 float screen_zoom = 1, screen_center_x = 0, screen_center_y = 0;
-float camera_rotation_angle = 0;
+glm::vec3 eye(7, 7, 7);
+glm::vec3 target(0, 0, 0);
+glm::vec3 up(0, 1, 0);
+int objIndex = 2;
 
 Timer t60(1.0 / 60);
 
-/* Render the scene with openGL */
-/* Edit this function according to your assignment */
 void draw() {
-  // clear the color and depth in the frame buffer
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  // use the loaded shader program
-  // Don't change unless you know what you are doing
   glUseProgram(programID);
-
-  // Eye - Location of camera. Don't change unless you are sure!!
-  glm::vec3 eye(5 * cos(camera_rotation_angle * M_PI / 180.0f), 0,
-                5 * sin(camera_rotation_angle * M_PI / 180.0f));
-  // Target - Where is the camera looking at.  Don't change unless you are
-  // sure!!
-  glm::vec3 target(0, 0, 0);
-  // Up - Up vector defines tilt of camera.  Don't change unless you are sure!!
-  glm::vec3 up(0, 1, 0);
-
-  // Compute Camera matrix (view)
   Matrices.view = glm::lookAt(eye, target, up);  // Rotating Camera for 3D
-  // Don't change unless you are sure!!
-  // Matrices.view = glm::lookAt(glm::vec3(0, 0, 3), glm::vec3(0, 0, 0),
-  // glm::vec3(0, 1, 0)); // Fixed camera for 2D (ortho) in XY plane
-
-  // Compute ViewProject matrix as view/camera might not be changed for this
-  // frame (basic scenario) Don't change unless you are sure!!
   glm::mat4 VP = Matrices.projection * Matrices.view;
-
-  // Send our transformation to the currently bound shader, in the "MVP" uniform
-  // For each model you render, since the MVP will be different (at least the M
-  // part) Don't change unless you are sure!!
-  glm::mat4 MVP;  // MVP = Projection * View * Model
-
-  // Scene render
-  ball1.draw(VP);
+  ball1.draw(VP, objIndex);
 }
 
 void tick_input(GLFWwindow *window) {
-  int left = glfwGetKey(window, GLFW_KEY_LEFT);
-  int right = glfwGetKey(window, GLFW_KEY_RIGHT);
-  if (left) {
-    // Do something
+  glm::vec3 front = target - eye;
+  glm::vec3 cam_horizontal = glm::normalize(glm::cross(up, front));
+  glm::vec3 cam_vertical = glm::normalize(glm::cross(front, cam_horizontal));
+
+  if (glfwGetKey(window, GLFW_KEY_0))
+    objIndex = 0;
+  if (glfwGetKey(window, GLFW_KEY_1))
+    objIndex = 1;
+  if (glfwGetKey(window, GLFW_KEY_2))
+    objIndex = 2;
+  if (glfwGetKey(window, GLFW_KEY_3))
+    objIndex = 3;
+
+  if (glfwGetKey(window, GLFW_KEY_Q)) {
+    eye += 0.1f * front;
   }
+  if (glfwGetKey(window, GLFW_KEY_W)) {
+    eye -= 0.1f * front;
+  }
+  if (glfwGetKey(window, GLFW_KEY_E)) {
+    eye -= cam_horizontal * 0.1f;
+    target -= cam_horizontal * 0.1f;
+  }
+  if (glfwGetKey(window, GLFW_KEY_R)) {
+    eye += cam_horizontal * 0.1f;
+    target += cam_horizontal * 0.1f;
+  }
+  if (glfwGetKey(window, GLFW_KEY_T)) {
+    eye += cam_vertical * 0.1f;
+    target += cam_vertical * 0.1f;
+  }
+  if (glfwGetKey(window, GLFW_KEY_Y)) {
+    eye -= cam_vertical * 0.1f;
+    target -= cam_vertical * 0.1f;
+  }
+
+  if (glfwGetKey(window, GLFW_KEY_A)) ball1.translate(-0.1, 0, 0);
+  if (glfwGetKey(window, GLFW_KEY_S)) ball1.translate(0.1, 0, 0);
+  if (glfwGetKey(window, GLFW_KEY_D)) ball1.translate(0, -0.1, 0);
+  if (glfwGetKey(window, GLFW_KEY_F)) ball1.translate(0, 0.1, 0);
+  if (glfwGetKey(window, GLFW_KEY_G)) ball1.translate(0, 0, -0.1);
+  if (glfwGetKey(window, GLFW_KEY_H)) ball1.translate(0, 0, 0.1);
+
+  if (glfwGetKey(window, GLFW_KEY_Z)) {
+    target = ball1.position;
+    eye = glm::vec3(10,0,0);
+  }
+  if (glfwGetKey(window, GLFW_KEY_X)) {
+    target = ball1.position;
+    eye = glm::vec3(0,3,10);
+  }
+  if (glfwGetKey(window, GLFW_KEY_C)) {
+    target = ball1.position;
+    eye = glm::vec3(10,10,0);
+  }
+
+  if (glfwGetKey(window, GLFW_KEY_N)) {
+    ball1.rotation += 1;
+  }
+  if (glfwGetKey(window, GLFW_KEY_M)) {
+    target = ball1.position;
+    glm::mat4 rotMat = glm::rotate(0.01f, cam_vertical);
+    eye = glm::translate(ball1.position) * rotMat * glm::translate(-ball1.position) * glm::vec4(eye, 1.0f);
+  }
+
 }
 
 void tick_elements() {
   ball1.tick();
-  camera_rotation_angle += 1;
 }
 
 /* Initialize the OpenGL rendering properties */
@@ -142,5 +170,6 @@ void reset_screen() {
   float bottom = screen_center_y - 4 / screen_zoom;
   float left = screen_center_x - 4 / screen_zoom;
   float right = screen_center_x + 4 / screen_zoom;
-  Matrices.projection = glm::ortho(left, right, bottom, top, 0.1f, 500.0f);
+  Matrices.projection =
+      glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 500.0f);
 }
